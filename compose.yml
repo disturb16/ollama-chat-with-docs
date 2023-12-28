@@ -1,0 +1,32 @@
+version: "3.6"
+
+services:
+  chroma:
+    container_name: ollama_chroma
+    image: chromadb/chroma:latest
+    ports:
+      - 8000:8000
+    volumes:
+      - chromavol:/chroma/.chroma/index
+
+  core:
+    container_name: ollama_core
+    image: ollama/ollama:0.1.17
+    ports:
+      - 11434:11434
+    volumes:
+      - ./models:/ollama/models
+    environment:
+      - OLLAMA_MODELS=/ollama/models
+
+  ui:
+    container_name: ollama_ui
+    image: ghcr.io/ivanfioravanti/chatbot-ollama:main
+    ports:
+      - 3000:3000
+    environment:
+      - DEFAULT_MODEL=llama2
+      - OLLAMA_HOST=http://api:11434
+
+volumes:
+  chromavol:
