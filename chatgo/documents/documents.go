@@ -1,4 +1,4 @@
-package files
+package documents
 
 import (
 	"context"
@@ -39,7 +39,7 @@ func Load(ctx context.Context, name string) []schema.Document {
 	}
 
 	splitter := textsplitter.NewRecursiveCharacter(
-		textsplitter.WithChunkSize(300),
+		textsplitter.WithChunkSize(100),
 		textsplitter.WithChunkOverlap(10),
 	)
 

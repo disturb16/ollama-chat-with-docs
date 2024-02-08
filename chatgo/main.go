@@ -1,47 +1,32 @@
 package main
 
 import (
+	"bufio"
 	"chatgo/chromastore"
-	"chatgo/files"
+	"chatgo/llm"
 	"context"
 	"flag"
-	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/signal"
-	"time"
+	"strings"
+	"syscall"
 
-	"github.com/tmc/langchaingo/chains"
-	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/llms/ollama"
 	"github.com/tmc/langchaingo/vectorstores"
+	"github.com/tmc/langchaingo/vectorstores/chroma"
 )
 
-var (
-	scoreThreshold = vectorstores.WithScoreThreshold(0.3)
-	temperature    = chains.WithTemperature(0.5)
-)
-
-const (
-	modelName  string = "llama2:latest"
-	collection string = "mydocs"
-	ollamaURL  string = "http://localhost:11434"
-)
-
-type Params struct {
-	LLM      *ollama.LLM
-	Store    vectorstores.VectorStore
-	Query    string
-	FilePath string
-}
+var threshold = vectorstores.WithScoreThreshold(0.2)
 
 func main() {
-	now := time.Now()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
+
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		for sig := range c {
 			log.Printf("received %s, exiting\n", sig)
@@ -50,25 +35,39 @@ func main() {
 	}()
 
 	query, filePath := flagVars()
-	llm := LLM()
-	store := Store(ctx, llm)
-
-	params := Params{
-		LLM:      llm,
-		Store:    store,
-		Query:    query,
-		FilePath: filePath,
-	}
+	model := llm.New()
+	store := chromastore.New(model)
 
 	if filePath != "" {
-		addDoc(ctx, params)
+		chromastore.AddDoc(ctx, store, filePath)
 	}
+
+	isFirstQuestion := true
 
 	if query != "" {
-		queryLLM(ctx, params)
-	}
+		reader := bufio.NewReader(os.Stdin)
+		for {
 
-	log.Printf("finished in %f mins\n", time.Since(now).Minutes())
+			if isFirstQuestion {
+				askQuery(ctx, model, store, query)
+			}
+
+			// keep getting input from command line until user exits
+			// or sends a signal
+			io.WriteString(os.Stdout, "Enter query: ")
+			query, _ = reader.ReadString('\n')
+			query = strings.Replace(query, "\n", "", -1)
+
+			if query == "exit" {
+				log.Println("exiting...")
+				cancel()
+				return
+			}
+
+			askQuery(ctx, model, store, query)
+			isFirstQuestion = false
+		}
+	}
 }
 
 func flagVars() (query, filePath string) {
@@ -81,72 +80,11 @@ func flagVars() (query, filePath string) {
 	return query, filePath
 }
 
-func LLM() *ollama.LLM {
-	llm, err := ollama.New(
-		ollama.WithModel(modelName),
-		ollama.WithServerURL(ollamaURL),
-	)
-
+func askQuery(ctx context.Context, model *ollama.LLM, store *chroma.Store, query string) {
+	dd, err := store.SimilaritySearch(ctx, query, 50, threshold)
 	if err != nil {
 		panic(err)
 	}
 
-	return llm
-}
-
-func Store(ctx context.Context, llm *ollama.LLM) vectorstores.VectorStore {
-	e, err := embeddings.NewEmbedder(llm)
-	if err != nil {
-		panic(err)
-	}
-
-	store, err := chromastore.New(e)
-	if err != nil {
-		panic(err)
-	}
-
-	return store
-}
-
-func queryLLM(ctx context.Context, params Params) {
-	fmt.Printf("\n")
-	dd, err := params.Store.SimilaritySearch(ctx, params.Query, 50, scoreThreshold)
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Printf("\n")
-
-	// exit early if no docs found
-	fmt.Printf("found %d documents\n", len(dd))
-	if len(dd) == 0 {
-		return
-	}
-
-	log.Printf("%s \n\n", params.Query)
-
-	chain := chains.LoadStuffQA(params.LLM)
-
-	input := map[string]any{
-		"question":        params.Query,
-		"input_documents": dd,
-	}
-
-	response, err := chains.Call(ctx, chain, input, temperature)
-	if err != nil {
-		panic(err)
-	}
-
-	log.Println(response["text"])
-}
-
-func addDoc(ctx context.Context, params Params) {
-
-	docs := files.Load(ctx, params.FilePath)
-
-	log.Printf("adding %d documents for %s\n", len(docs), params.FilePath)
-	err := params.Store.AddDocuments(ctx, docs)
-	if err != nil {
-		panic(err)
-	}
+	llm.Query(ctx, model, dd, query)
 }

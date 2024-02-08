@@ -1,8 +1,14 @@
 package chromastore
 
 import (
+	"chatgo/documents"
+	"context"
+	"log"
+
 	chroma_go "github.com/amikos-tech/chroma-go"
 	"github.com/tmc/langchaingo/embeddings"
+	"github.com/tmc/langchaingo/llms/ollama"
+	"github.com/tmc/langchaingo/vectorstores"
 	"github.com/tmc/langchaingo/vectorstores/chroma"
 )
 
@@ -12,7 +18,21 @@ const (
 	apiKey    = "A035C8C19219BA821ECEA86B64E628F8D684696D"
 )
 
-func New(e embeddings.Embedder) (*chroma.Store, error) {
+var store *chroma.Store
+
+type Params struct {
+	LLM      *ollama.LLM
+	Store    vectorstores.VectorStore
+	Query    string
+	FilePath string
+}
+
+func New(llm *ollama.LLM) *chroma.Store {
+	e, err := embeddings.NewEmbedder(llm)
+	if err != nil {
+		panic(err)
+	}
+
 	s, err := chroma.New(
 		chroma.WithChromaURL(serverURL),
 		chroma.WithEmbedder(e),
@@ -21,5 +41,24 @@ func New(e embeddings.Embedder) (*chroma.Store, error) {
 		chroma.WithDistanceFunction(chroma_go.COSINE),
 	)
 
-	return &s, err
+	if err != nil {
+		panic(err)
+	}
+
+	store = &s
+	return store
+}
+
+func AddDoc(ctx context.Context, s *chroma.Store, path string) {
+	docs := documents.Load(ctx, path)
+
+	if s == nil {
+		panic("store is nil")
+	}
+
+	log.Printf("adding %d documents for %s\n", len(docs), path)
+	err := s.AddDocuments(ctx, docs)
+	if err != nil {
+		panic(err)
+	}
 }
