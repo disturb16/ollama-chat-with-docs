@@ -13,13 +13,13 @@ services:
     environment:
       - OLLAMA_MODELS=/ollama/models
 
-  # chroma:
-  #   container_name: ollama_chroma
-  #   image: chromadb/chroma:0.4.22.dev44
-  #   ports:
-  #     - 8000:8000
-  # volumes:
-  #   - chromavol:/chroma/.chroma/index
+  chroma:
+    container_name: ollama_chroma
+    image: chromadb/chroma:0.4.22.dev44
+    ports:
+      - 8000:8000
+    volumes:
+      - chromavol:/chroma/.chroma/index
 
   ui:
     image: ghcr.io/ollama-webui/ollama-webui:main
@@ -35,4 +35,4 @@ services:
 
 volumes:
   ollama-webui:
-#   chromavol:
+  chromavol:
