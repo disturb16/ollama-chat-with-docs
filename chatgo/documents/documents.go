@@ -40,7 +40,7 @@ func Load(ctx context.Context, name string) []schema.Document {
 
 	splitter := textsplitter.NewRecursiveCharacter(
 		textsplitter.WithChunkSize(100),
-		textsplitter.WithChunkOverlap(10),
+		textsplitter.WithChunkOverlap(20),
 	)
 
 	dd, err := loader.LoadAndSplit(ctx, splitter)

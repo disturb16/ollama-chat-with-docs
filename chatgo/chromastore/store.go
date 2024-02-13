@@ -18,8 +18,6 @@ const (
 	apiKey    = "A035C8C19219BA821ECEA86B64E628F8D684696D"
 )
 
-var store *chroma.Store
-
 type Params struct {
 	LLM      *ollama.LLM
 	Store    vectorstores.VectorStore
@@ -27,26 +25,19 @@ type Params struct {
 	FilePath string
 }
 
-func New(llm *ollama.LLM) *chroma.Store {
+func New(llm *ollama.LLM) (chroma.Store, error) {
 	e, err := embeddings.NewEmbedder(llm)
 	if err != nil {
 		panic(err)
 	}
 
-	s, err := chroma.New(
+	return chroma.New(
 		chroma.WithChromaURL(serverURL),
 		chroma.WithEmbedder(e),
 		chroma.WithNameSpace(namespace),
 		chroma.WithOpenAiAPIKey(apiKey),
 		chroma.WithDistanceFunction(chroma_go.COSINE),
 	)
-
-	if err != nil {
-		panic(err)
-	}
-
-	store = &s
-	return store
 }
 
 func AddDoc(ctx context.Context, s *chroma.Store, path string) {

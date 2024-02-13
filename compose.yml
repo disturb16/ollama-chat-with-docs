@@ -4,6 +4,8 @@ services:
   core:
     container_name: ollama_core
     image: ollama/ollama:0.1.23
+    networks:
+      - default
     ports:
       - 11434:11434
     volumes:
@@ -11,21 +13,26 @@ services:
     environment:
       - OLLAMA_MODELS=/ollama/models
 
-  chroma:
-    container_name: ollama_chroma
-    image: chromadb/chroma:0.4.22.dev44
-    ports:
-      - 8000:8000
-    # volumes:
-    #   - chromavol:/chroma/.chroma/index
-
-  # ui:
-  #   container_name: ollama_ui
-  #   image: ghcr.io/ivanfioravanti/chatbot-ollama:main
+  # chroma:
+  #   container_name: ollama_chroma
+  #   image: chromadb/chroma:0.4.22.dev44
   #   ports:
-  #     - 3000:3000
-  #   environment:
-  #     - DEFAULT_MODEL=llama2
-  #     - OLLAMA_HOST=http://api:11434
-# volumes:
+  #     - 8000:8000
+  # volumes:
+  #   - chromavol:/chroma/.chroma/index
+
+  ui:
+    image: ghcr.io/ollama-webui/ollama-webui:main
+    container_name: ollama_ui
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - default
+    ports:
+      - 3000:8080
+    volumes:
+      - ollama-webui:/app/backend/data
+
+volumes:
+  ollama-webui:
 #   chromavol:
